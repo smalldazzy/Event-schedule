@@ -21,7 +21,8 @@ export default class AfishaWebPart extends BaseClientSideWebPart<IAfishaWebPartP
     const element: React.ReactElement<IAfishaProps > = React.createElement(
       Afisha,
       {
-        description: this.properties.description
+        description: this.properties.description,
+        context: this.context
       }
     );
 
