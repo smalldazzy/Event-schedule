@@ -22,7 +22,7 @@ export default class AfishaWebPart extends BaseClientSideWebPart<IAfishaWebPartP
       Afisha,
       {
         description: this.properties.description,
-        context: this.context
+        clientFactory: this.context.msGraphClientFactory
       }
     );
 
