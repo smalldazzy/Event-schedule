@@ -1,0 +1,28 @@
+<Where>
+    <And>
+        <Eq>
+            <FieldRef Name='UserName'/>
+            <Value Type='Text'>Олег Куприянов​</Value>
+        </Eq>
+        <Eq>
+            <FieldRef Name='Title'/>
+            <Value Type='Text'>Kerexu</Value>
+        </Eq>
+    </And>
+</Where>
+
+
+
+
+
+<View>
+    <ViewFields>
+        <FieldRef Name='btnStatus' />
+        <FieldRef Name='Title' />
+    </ViewFields>
+    <Query>
+        <OrderBy>
+            <FieldRef Name='Title' />
+        </OrderBy>
+    </Query>
+</View>

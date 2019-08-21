@@ -6,14 +6,27 @@ import pnp, { Web, sp } from 'sp-pnp-js';
 import { DetailsList, DetailsListLayoutMode, IColumn } from 'office-ui-fabric-react/lib/DetailsList';
 import * as MicrosoftGraph from '@microsoft/microsoft-graph-types';
 import Covers from './Covers';
-import { MSGraphClient } from '@microsoft/sp-http';
+import { MSGraphClient, SPHttpClientResponse } from '@microsoft/sp-http';
 import { Client } from '@microsoft/microsoft-graph-client';
 import { string } from 'prop-types';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { tenantUrl, listId } from '../constants';
 
-
-export default class Afisha extends React.Component<IAfishaProps, {}> {
+interface IrecItem {
+  UserName: string;
+  Title: string;
+  EventDate: string;
+  EndDate: string;
+  ListItemID: string;
+}
+interface IAfishaState {
+  columns: Array<any>;
+  recitems: Array<IrecItem>;
+  events: Array<any>;
+  userName: string;
+  currentdate: Date;
+}
+export default class Afisha extends React.Component<IAfishaProps, IAfishaState> {
   public state = {
     columns: this.columsCreate(['UserName', 'Title', 'EventDate', 'EndDate']),
     recitems: [],
@@ -22,7 +35,7 @@ export default class Afisha extends React.Component<IAfishaProps, {}> {
     currentdate: new Date()
   };
   private getSearch() {
-    let url = `${tenantUrl}/search/_api/search/query?querytext='${listId}'&selectproperties='Title%2c+EventDateOWSDate%2c+EndDateOWSDate%2c+RefinableString50'&clienttype='ContentSearchRegular'`;
+    let url = `${tenantUrl}/search/_api/search/query?querytext='${listId}'&selectproperties='Title%2c+EventDateOWSDate%2c+EndDateOWSDate%2c+RefinableString50%2c+ListItemID'&clienttype='ContentSearchRegular'`;
     // let url = `https://cupcuper.sharepoint.com/search/_api/search/query?querytext='a5558fa4-8101-4bd8-b487-d9cadfef789d'&selectproperties='Title%2cEventDateOWSDate%2cEndDateOWSDate'&clienttype='ContentSearchRegular'`;
     fetch(url, {
       method: 'get',
@@ -36,14 +49,13 @@ export default class Afisha extends React.Component<IAfishaProps, {}> {
       let viewlist = [];
       arr.forEach((item) => {
         viewlist.push({
-          UserName: item.Cells.results[5].Value,
+          UserName: item.Cells.results[5].Value.trim(), //откуда пробелы в refstring50?
           Title: item.Cells.results[2].Value,
           EventDate: item.Cells.results[3].Value,
           EndDate: item.Cells.results[4].Value,
-          DocID: item.Cells.results[1].Value
+          ListItemID: item.Cells.results[6].Value
         });
       });
-      console.log(viewlist);
       this.setState({ recitems: viewlist });
     }
     ).then(() => this.setLsRecords());
@@ -53,7 +65,7 @@ export default class Afisha extends React.Component<IAfishaProps, {}> {
     console.log('Fetching events from api');
     let newDate = this.state.currentdate.toISOString().split('T')[0];
     let uri = `https://api.themoviedb.org/3/discover/movie?primary_release_date.gte=${newDate}&primary_release_date.lte=${newDate}`;
-    let url = `https://cors-anywhere.herokuapp.com/https://api.themoviedb.org/3/movie/now_playing/`;
+    // let url = `https://cors-anywhere.herokuapp.com/https://api.themoviedb.org/3/movie/now_playing/`;
     fetch(uri, {
       method: 'get',
       // mode: 'no-cors',
@@ -73,7 +85,6 @@ export default class Afisha extends React.Component<IAfishaProps, {}> {
             date: item.release_date,
           });
         });
-        console.log(events);
         this.setState({ events: events }, () => this.setLsEvents());
       });
   }
@@ -101,6 +112,7 @@ export default class Afisha extends React.Component<IAfishaProps, {}> {
           });
       });
   }
+
   public createEvent(item) {
     console.log(item);
     this.props.clientFactory.getClient().then((client: MSGraphClient): void => {
@@ -128,26 +140,87 @@ export default class Afisha extends React.Component<IAfishaProps, {}> {
         });
     });
   }
-  private addRecord(item, userName) {
+  private findIdCAML(Title: string, UserName: string){
+    let wep = new Web(`${tenantUrl}/sites/dev1`);
+    // let query = "<Where><And><Eq><FieldRef Name='UserName'/><Value Type='Text'>Олег Куприянов</Value></Eq><Eq><FieldRef Name='Title'/><Value Type='Text'>Overcomer</Value></Eq></And></Where>";
+    let query = `<Where><And><Eq><FieldRef Name='UserName'/><Value Type='Text'>${UserName}</Value></Eq><Eq><FieldRef Name='Title'/><Value Type='Text'>${Title}</Value></Eq></And></Where>`;
+    const xml = '<View><Query>' + query + '</Query></View>';  
+    // const xml = "<View><ViewFields><FieldRef Name='UserName' /><FieldRef Name='Title' /></ViewFields><Query><OrderBy><FieldRef Name='Title' /></OrderBy></Query></View>";
+    wep.lists.getById(listId).getItemsByCAMLQuery({'ViewXml':xml}).then((res) => {
+      console.log(res[0].ID);
+      if(res[0].ID>0) {
+        this.delFromSPL(res[0].ID);
+      }
+    });
+
+  }
+  private findStatusCAML(Title: string, UserName: string){
+    let wep = new Web(`${tenantUrl}/sites/dev1`);
+    // let query = "<Where><And><Eq><FieldRef Name='UserName'/><Value Type='Text'>Олег Куприянов</Value></Eq><Eq><FieldRef Name='Title'/><Value Type='Text'>Overcomer</Value></Eq></And></Where>";
+    let query = `<Where><And><Eq><FieldRef Name='UserName'/><Value Type='Text'>${UserName}</Value></Eq><Eq><FieldRef Name='Title'/><Value Type='Text'>${Title}</Value></Eq></And></Where>`;
+    const xml = '<View><Query>' + query + '</Query></View>';  
+    // const xml = "<View><ViewFields><FieldRef Name='UserName' /><FieldRef Name='Title' /></ViewFields><Query><OrderBy><FieldRef Name='Title' /></OrderBy></Query></View>";
+     return wep.lists.getById(listId).getItemsByCAMLQuery({'ViewXml':xml}).then((res) => {
+      console.log(res[0].ID);
+      // return (res[0].ID);
+    });
+  }
+  private addRecord(item, userName,btnStatus) {
     let wep = new Web(`${tenantUrl}/sites/dev1`);
     wep.lists.getById(listId).items.add({
       Title: item.title,
       EndDate: item.date,
       EventDate: item.date,
-      UserName: userName
+      UserName: userName,
+      btnStatus: btnStatus
     });
+  }
+  private getSp() {
+    let wep = new Web(`${tenantUrl}/sites/dev1`);
+    wep.lists.getById(listId).items.get().then((r) => console.log(r));
+  }
+  public findRecord(UserName: string, Title: string) {
+    let founded: IrecItem = this.state.recitems.find((element: IrecItem, index: number) => {
+      if (element.UserName === UserName && element.Title === Title) {
+        console.log('found! index', element.ListItemID);
+        return true;
+      }
+    });
+    console.log(founded.ListItemID);
+  }
+  private delFromSPL(itemId: number) {
+    let wep = new Web(`${tenantUrl}/sites/dev1`);
+    wep.lists.getById(listId).items.getById(itemId).delete().then(_ => { });
+  }
+  private delFromList(eventTitle: string, userName: string) {
+    let indexx: number;
+    let found = this.state.recitems.find((item: IrecItem, index: number) => {
+      if (item.Title === eventTitle && item.UserName === userName) {
+        console.log(index);
+        indexx = index;
+        return true;
+      }
+    });
+    if (found) {
+      console.log(found.ListItemID);
+      this.findIdCAML(eventTitle, userName);
+      this.state.recitems.splice(indexx, 1);
+    };
+    // let arr = this.state.recitems.slice(0);
+    // if (indexx!=undefined) {
+    //   arr.splice(indexx, 1);
+      // console.log(arr);
+      console.log(this.state.recitems);
+      this.setLsRecords();
+    
+   
   }
   private setLsRecords() {
     let savedRecords = {
       time: Date.now(),
       records: this.state.recitems
-    }
+    };
     localStorage.setItem('records', JSON.stringify(savedRecords));
-    // let saved = JSON.parse((localStorage.getItem('events')! || "[]"));
-    // let saveurl = this.state.store.find(element => element.id === id);
-    // saved.push({ id: id, url: saveurl.url });
-    // localStorage.setItem('events', JSON.stringify(saved));
-    // console.log('saved');
   }
   private setLsEvents() {
     if (this.state.currentdate.toISOString().split('T')[0] === new Date().toISOString().split('T')[0]) {
@@ -177,15 +250,15 @@ export default class Afisha extends React.Component<IAfishaProps, {}> {
       if (diff > 900000) { //15min in ms
         this.getSearch();
       } else {
-        this.setState({ recitems: saved.records })
+        this.setState({ recitems: saved.records });
       }
     } else {
       this.getSearch();
     }
   }
-  private attendClick(item, username: string) {
+  private attendClick(item, username: string, btnStatus) {
     // this.createEvent(item); remove comment for adding to outlook calendar
-    this.addRecord(item, username);
+    this.addRecord(item, username, btnStatus);
     this.addTempItem(item, username);
   }
   private columsCreate(arraySelect: Array<any>): Array<IColumn> {
@@ -209,6 +282,11 @@ export default class Afisha extends React.Component<IAfishaProps, {}> {
     this.kinopoisk = this.kinopoisk.bind(this);
     this.getLsEvents = this.getLsEvents.bind(this);
     this.attendClick = this.attendClick.bind(this);
+    this.delFromList = this.delFromList.bind(this);
+    this.findStatusCAML = this.findStatusCAML.bind(this);
+    // this.findIdCAML('Overcomer','Олег Куприянов');
+    this.findStatusCAML('Overcomer','Олег Куприянов');
+    // this.getSp();
   }
 
   public render(): React.ReactElement<IAfishaProps> {
@@ -225,6 +303,8 @@ export default class Afisha extends React.Component<IAfishaProps, {}> {
                 currentDate={this.state.currentdate}
                 kinopoisk={this.getLsEvents}
                 attendHandler={this.attendClick}
+                interestHandler={this.delFromList}
+                findStatusCAML={this.findStatusCAML}
               />
               <DetailsList
                 items={this.state.recitems}
