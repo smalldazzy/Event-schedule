@@ -1,16 +1,11 @@
 import * as React from 'react';
 import styles from './Afisha.module.scss';
 import { IAfishaProps } from './IAfishaProps';
-import { escape } from '@microsoft/sp-lodash-subset';
-import pnp, { Web, sp } from 'sp-pnp-js';
+import { Web } from 'sp-pnp-js';
 import { DetailsList, DetailsListLayoutMode, IColumn } from 'office-ui-fabric-react/lib/DetailsList';
 import * as MicrosoftGraph from '@microsoft/microsoft-graph-types';
-import Covers from './Covers';
 import Covers2 from './Covers2';
-import { MSGraphClient, SPHttpClientResponse } from '@microsoft/sp-http';
-import { Client } from '@microsoft/microsoft-graph-client';
-import { string } from 'prop-types';
-import { WebPartContext } from "@microsoft/sp-webpart-base";
+import { MSGraphClient } from '@microsoft/sp-http';
 import { tenantUrl, listId } from '../constants';
 
 interface IrecItem {
@@ -26,6 +21,7 @@ interface IAfishaState {
   events: Array<any>;
   userName: string;
   currentdate: Date;
+  btnStatus: Array<number>;
 }
 export default class Afisha extends React.Component<IAfishaProps, IAfishaState> {
   public state = {
@@ -33,11 +29,11 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
     recitems: [],
     events: [],
     userName: '',
-    currentdate: new Date()
+    currentdate: new Date(),
+    btnStatus: []
   };
   private getSearch() {
     let url = `${tenantUrl}/search/_api/search/query?querytext='${listId}'&selectproperties='Title%2c+EventDateOWSDate%2c+EndDateOWSDate%2c+RefinableString50%2c+ListItemID'&clienttype='ContentSearchRegular'`;
-    // let url = `https://cupcuper.sharepoint.com/search/_api/search/query?querytext='a5558fa4-8101-4bd8-b487-d9cadfef789d'&selectproperties='Title%2cEventDateOWSDate%2cEndDateOWSDate'&clienttype='ContentSearchRegular'`;
     fetch(url, {
       method: 'get',
       headers: {
@@ -63,6 +59,8 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
     console.log('New data list fetched');
   }
   private kinopoisk() {
+    this.setState({ btnStatus: [] });
+    console.log(this.state.userName);
     console.log('Fetching events from api');
     let newDate = this.state.currentdate.toISOString().split('T')[0];
     let uri = `https://api.themoviedb.org/3/discover/movie?primary_release_date.gte=${newDate}&primary_release_date.lte=${newDate}`;
@@ -86,17 +84,21 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
             date: item.release_date,
           });
         });
-        this.setState({ events: events }, () => this.setLsEvents());
+        this.setState({ events: events }, () => {
+          this.setLsEvents();
+          this.state.events.forEach((item) => this.findStatusCAML(item.title, 'Олег Куприянов')); //hardcode userName
+        });
       });
   }
-  public addTempItem(item, userName) {
+  public addTempItem(item, userName: string, btnStatus: number) {
     console.log('Adding new item');
     let newRecItems = this.state.recitems;
     newRecItems.push({
       UserName: userName,
       Title: item.title,
       EventDate: item.date,
-      EndDate: item.date
+      EndDate: item.date,
+      btnStatus: btnStatus
     });
     this.setState({ recitems: newRecItems }, () => this.setLsRecords());
   }
@@ -141,34 +143,36 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
         });
     });
   }
-  private findIdCAML(Title: string, UserName: string){
+  private findIdCAML(Title: string, UserName: string) {
     let wep = new Web(`${tenantUrl}/sites/dev1`);
-    // let query = "<Where><And><Eq><FieldRef Name='UserName'/><Value Type='Text'>Олег Куприянов</Value></Eq><Eq><FieldRef Name='Title'/><Value Type='Text'>Overcomer</Value></Eq></And></Where>";
     let query = `<Where><And><Eq><FieldRef Name='UserName'/><Value Type='Text'>${UserName}</Value></Eq><Eq><FieldRef Name='Title'/><Value Type='Text'>${Title}</Value></Eq></And></Where>`;
-    const xml = '<View><Query>' + query + '</Query></View>';  
-    // const xml = "<View><ViewFields><FieldRef Name='UserName' /><FieldRef Name='Title' /></ViewFields><Query><OrderBy><FieldRef Name='Title' /></OrderBy></Query></View>";
-    wep.lists.getById(listId).getItemsByCAMLQuery({'ViewXml':xml}).then((res) => {
+    const xml = '<View><Query>' + query + '</Query></View>';
+    wep.lists.getById(listId).getItemsByCAMLQuery({ 'ViewXml': xml }).then((res) => {
       console.log(res[0].ID);
-      if(res[0].ID>0) {
+      if (res[0].ID > 0) {
         this.delFromSPL(res[0].ID);
       }
     });
 
   }
-  private findStatusCAML(Title: string, UserName: string){
+  private findStatusCAML(Title: string, UserName: string) {
     let wep = new Web(`${tenantUrl}/sites/dev1`);
-    // let query = "<Where><And><Eq><FieldRef Name='UserName'/><Value Type='Text'>Олег Куприянов</Value></Eq><Eq><FieldRef Name='Title'/><Value Type='Text'>Overcomer</Value></Eq></And></Where>";
     let query = `<Where><And><Eq><FieldRef Name='UserName'/><Value Type='Text'>${UserName}</Value></Eq><Eq><FieldRef Name='Title'/><Value Type='Text'>${Title}</Value></Eq></And></Where>`;
-    const xml = '<View><Query>' + query + '</Query></View>';  
-    // const xml = "<View><ViewFields><FieldRef Name='UserName' /><FieldRef Name='Title' /></ViewFields><Query><OrderBy><FieldRef Name='Title' /></OrderBy></Query></View>";
-     return wep.lists.getById(listId).getItemsByCAMLQuery({'ViewXml':xml}).then((res) => {
-       if (res[0]!==undefined){
-      // console.log(res[0].btnStatus);
-          return (res[0].btnStatus);
-       } 
+    const xml = '<View><Query>' + query + '</Query></View>';
+    wep.lists.getById(listId).getItemsByCAMLQuery({ 'ViewXml': xml }).then((res) => {
+      if (res[0] !== undefined) {
+        console.log(res[0].btnStatus);
+        let arr = this.state.btnStatus;
+        arr.push(res[0].btnStatus);
+        this.setState({ btnStatus: arr });
+      } else {
+        let arr = this.state.btnStatus;
+        arr.push(0);
+        this.setState({ btnStatus: arr });
+      }
     });
   }
-  private addRecord(item, userName,btnStatus) {
+  private addRecord(item, userName, btnStatus) {
     let wep = new Web(`${tenantUrl}/sites/dev1`);
     wep.lists.getById(listId).items.add({
       Title: item.title,
@@ -177,19 +181,6 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
       UserName: userName,
       btnStatus: btnStatus
     });
-  }
-  private getSp() {
-    let wep = new Web(`${tenantUrl}/sites/dev1`);
-    wep.lists.getById(listId).items.get().then((r) => console.log(r));
-  }
-  public findRecord(UserName: string, Title: string) {
-    let founded: IrecItem = this.state.recitems.find((element: IrecItem, index: number) => {
-      if (element.UserName === UserName && element.Title === Title) {
-        console.log('found! index', element.ListItemID);
-        return true;
-      }
-    });
-    console.log(founded.ListItemID);
   }
   private delFromSPL(itemId: number) {
     let wep = new Web(`${tenantUrl}/sites/dev1`);
@@ -208,15 +199,9 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
       console.log(found.ListItemID);
       this.findIdCAML(eventTitle, userName);
       this.state.recitems.splice(indexx, 1);
-    };
-    // let arr = this.state.recitems.slice(0);
-    // if (indexx!=undefined) {
-    //   arr.splice(indexx, 1);
-      // console.log(arr);
-      console.log(this.state.recitems);
-      this.setLsRecords();
-    
-   
+    }
+    console.log(this.state.recitems);
+    this.setLsRecords();
   }
   private setLsRecords() {
     let savedRecords = {
@@ -232,11 +217,13 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
     }
   }
   private getLsEvents() {
-    let saved = JSON.parse((localStorage.getItem('events'))) || null;
+    // let saved = JSON.parse((localStorage.getItem('events'))) || null; //uncomment this
+    //hardcode 
+    let saved = null;
     if (saved !== null) {
-      if (this.state.currentdate.toISOString().split('T')[0] === new Date().toISOString().split('T')[0]) {
+      if (saved[0].date === new Date().toISOString().split('T')[0]) {
         console.log('Fetching events from localstorage');
-        this.setState({ events: saved });
+        this.setState({ events: saved }, () => this.state.events.forEach((item) => this.findStatusCAML(item.title, 'Олег Куприянов')));
       } else {
         this.kinopoisk();
       }
@@ -247,7 +234,6 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
   private getLsRecords() {
     let saved = JSON.parse((localStorage.getItem('records'))) || null;
     if (saved !== null) {
-      console.log(saved);
       let diff = (Date.now() - saved.time);
       console.log((Date.now() - saved.time));
       if (diff > 900000) { //15min in ms
@@ -260,9 +246,30 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
     }
   }
   private attendClick(item, username: string, btnStatus) {
-    // this.createEvent(item); remove comment for adding to outlook calendar
-    this.addRecord(item, username, btnStatus);
-    this.addTempItem(item, username);
+    if (btnStatus === 1) { //if already attending
+      this.delFromList(item.title, username);
+    } else if (btnStatus === 2) {//if interesting
+      this.delFromList(item.title, username);
+      this.addRecord(item, username, btnStatus);
+      this.addTempItem(item, username, btnStatus);
+      // this.createEvent(item); //remove comment for adding to outlook calendar
+    } else if (btnStatus === 0) { //if doesn't exist
+      this.addRecord(item, username, 1);
+      this.addTempItem(item, username, 1);
+      // this.createEvent(item); //remove comment for adding to outlook calendar
+    }
+  }
+  private interestClick(item, username: string, btnStatus: number) {
+    if (btnStatus === 1) { //if attending
+      this.delFromList(item.title, username);
+      this.addRecord(item, username, 2);
+      this.addTempItem(item, username, 2);
+    } else if (btnStatus === 2) {//if already interesting
+      this.delFromList(item.title, username);
+    } else if (btnStatus === 0) { //if doesn't exist
+      this.addRecord(item, username, 2);
+      this.addTempItem(item, username, 2);
+    }
   }
   private columsCreate(arraySelect: Array<any>): Array<IColumn> {
     const columns: IColumn[] = [];
@@ -278,18 +285,20 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
     });
     return columns;
   }
+  public componentWillMount() {
+    this.getUserData();
+  }
   public componentDidMount() {
+    this.getUserData();
     this.getLsEvents();
     this.getLsRecords();
-    this.getUserData();
     this.kinopoisk = this.kinopoisk.bind(this);
     this.getLsEvents = this.getLsEvents.bind(this);
     this.attendClick = this.attendClick.bind(this);
     this.delFromList = this.delFromList.bind(this);
+    this.interestClick = this.interestClick.bind(this);
     this.findStatusCAML = this.findStatusCAML.bind(this);
-    // this.findIdCAML('Overcomer','Олег Куприянов');
-    // this.findStatusCAML('Overcomer','Олег Куприянов');
-    // this.getSp();
+    setTimeout(() => console.log(this.state.btnStatus), 2000);
   }
 
   public render(): React.ReactElement<IAfishaProps> {
@@ -298,25 +307,16 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
         <div className={styles.container}>
           <div className={styles.row}>
             <div className={styles.column}>
-              <span className={styles.title}>Welcome to SharePoint!</span>
               <p className={styles.description}>Events for {this.state.currentdate.toISOString().split('T')[0]}</p>
-              {/* <Covers
-                events={this.state.events}
-                userName={this.state.userName}
-                currentDate={this.state.currentdate}
-                kinopoisk={this.getLsEvents}
-                attendHandler={this.attendClick}
-                interestHandler={this.delFromList}
-                findStatusCAML={this.findStatusCAML}
-              /> */}
               <Covers2
                 events={this.state.events}
                 userName={this.state.userName}
                 currentDate={this.state.currentdate}
                 kinopoisk={this.getLsEvents}
                 attendHandler={this.attendClick}
-                interestHandler={this.delFromList}
+                interestHandler={this.interestClick}
                 findStatusCAML={this.findStatusCAML}
+                btnStatus={this.state.btnStatus}
               />
               <DetailsList
                 items={this.state.recitems}
