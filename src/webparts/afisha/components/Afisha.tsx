@@ -6,6 +6,7 @@ import pnp, { Web, sp } from 'sp-pnp-js';
 import { DetailsList, DetailsListLayoutMode, IColumn } from 'office-ui-fabric-react/lib/DetailsList';
 import * as MicrosoftGraph from '@microsoft/microsoft-graph-types';
 import Covers from './Covers';
+import Covers2 from './Covers2';
 import { MSGraphClient, SPHttpClientResponse } from '@microsoft/sp-http';
 import { Client } from '@microsoft/microsoft-graph-client';
 import { string } from 'prop-types';
@@ -161,8 +162,10 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
     const xml = '<View><Query>' + query + '</Query></View>';  
     // const xml = "<View><ViewFields><FieldRef Name='UserName' /><FieldRef Name='Title' /></ViewFields><Query><OrderBy><FieldRef Name='Title' /></OrderBy></Query></View>";
      return wep.lists.getById(listId).getItemsByCAMLQuery({'ViewXml':xml}).then((res) => {
-      console.log(res[0].ID);
-      // return (res[0].ID);
+       if (res[0]!==undefined){
+      // console.log(res[0].btnStatus);
+          return (res[0].btnStatus);
+       } 
     });
   }
   private addRecord(item, userName,btnStatus) {
@@ -285,7 +288,7 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
     this.delFromList = this.delFromList.bind(this);
     this.findStatusCAML = this.findStatusCAML.bind(this);
     // this.findIdCAML('Overcomer','Олег Куприянов');
-    this.findStatusCAML('Overcomer','Олег Куприянов');
+    // this.findStatusCAML('Overcomer','Олег Куприянов');
     // this.getSp();
   }
 
@@ -297,7 +300,16 @@ export default class Afisha extends React.Component<IAfishaProps, IAfishaState> 
             <div className={styles.column}>
               <span className={styles.title}>Welcome to SharePoint!</span>
               <p className={styles.description}>Events for {this.state.currentdate.toISOString().split('T')[0]}</p>
-              <Covers
+              {/* <Covers
+                events={this.state.events}
+                userName={this.state.userName}
+                currentDate={this.state.currentdate}
+                kinopoisk={this.getLsEvents}
+                attendHandler={this.attendClick}
+                interestHandler={this.delFromList}
+                findStatusCAML={this.findStatusCAML}
+              /> */}
+              <Covers2
                 events={this.state.events}
                 userName={this.state.userName}
                 currentDate={this.state.currentdate}
